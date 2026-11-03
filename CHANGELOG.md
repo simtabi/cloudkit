@@ -20,9 +20,29 @@ All notable changes to this project are documented here. The format follows
 - CI on pull requests, by dispatch and weekly; a release workflow that runs only on a confirmed
   dispatch against a `v` tag.
 - A weekly and on-demand CI leg on macOS and Windows; pull requests still test on Linux only.
+- `Options`, `CredentialSource` and `Registry` (`NewRegistry`, `Open`, `Descriptors`): the caller
+  builds the registry from one `Factory` per provider; it refuses invalid options, incomplete
+  descriptors, empty or non-slug provider IDs and duplicate IDs, and keeps no package-level state.
+- `Provider`, `Descriptor`, `TokenModel`, `Module`, `Resource`, `Filter` and `Account`: each `Open`
+  gives an adapter a fresh client that is limited to its declared hosts, fetches the account's token
+  per request, sends it only to API hosts and never on a redirect, and retries.
+- `Capability`, `Access` (`Allowed`, `Denied`, `Unknown`) and `CapSet`, with the capability catalogue;
+  an unknown capability counts as a write.
+- `Plan`, `Change`, `Money`, `NewPlan` and a SHA-256 digest over the provider, account, changes, what a
+  destroy loses and the live state; plans expire after `PlanTTL`.
+- `Registry.Apply` with the `Applier` interface: refuses an altered or expired plan and a plan whose
+  live state moved (`ErrConflict`, `PlanError`), and a destroy whose resource names were not typed back
+  (`ErrConfirmationRequired`, `Confirmation`), before anything is sent.
+- `RetryPolicy` and `RateLimitError`: jittered backoff, `Retry-After` honoured up to `MaxDelay`, and no
+  retry of a non-idempotent request after an ambiguous failure.
+- `UnsupportedError`, matching `ErrUnsupported`.
+- Policy tests: context first on every interface and registry method (C10), no package-level client
+  or registry (C9), and no shipped exported name removed.
 
 ### Changed
 
 - The architecture guide states the scope split: cloudkit finds and connects to managed databases
   but never administers them, and REST descriptors (planned) support writes behind signing or
   explicit enablement, plans and the contract suite.
+- The architecture guide explains the plan digest and the client's layering, and the getting-started
+  guide covers the registry, plans, `Apply` and retries.

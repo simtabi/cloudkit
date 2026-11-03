@@ -35,9 +35,12 @@ its own engine adapters.
 | C9 | No global state: no `init()` registration, no package-level clients |
 | C10 | `context.Context` first on every call; the logger is injected |
 
-C1, C3, C4 and C5 are implemented in this release. A policy test in `src/internal/policy` scans
-every Go file for the symbols that would break C1, C4, C8, C9 and C10, with an exemption list that
-records the exact count it allows.
+C1 to C7, C9 and C10 are implemented in this release; C8 arrives with the SSH path. A policy test
+in `src/internal/policy` scans every Go file for the symbols that would break C1, C4, C8, C9 and
+C10, with an exemption list that records the exact count it allows. Three more policy tests read
+the package's syntax: every interface method, `*Registry` method and exported function field takes
+a `context.Context` first (C10); no package-level client or registry exists (C9); and no exported
+name the package has shipped disappears.
 
 ## Why the caller owns the transport
 
@@ -46,6 +49,31 @@ checks each address. Several provider SDKs fall back to the default HTTP client 
 a library that accepted nil, or built its own client, would route around that guard without anyone
 noticing. Refusing nil and refusing the default transport makes the bypass impossible to write by
 accident.
+
+## Why plans carry a digest
+
+Both consumers show a plan to a person, collect an approval, and apply it later, possibly minutes
+later and from another process. The digest is SHA-256 over the provider, the account, the changes,
+what a destroy loses, and the live state the plan was built against. `Apply` reads the live state
+again through the adapter and recomputes it, so one comparison refuses a plan whose infrastructure
+moved, a plan edited after approval (a trimmed `Loses` list, another target), and a plan replayed
+against another account. The plan ID is derived from the digest, so an approval recorded against an
+ID cannot be reused for different content. `Cost` and `Expires` are outside the digest: the first is
+informational, and the second is checked on its own.
+
+A destroy is applied only when the consumer passes back the deleted resources' names exactly as
+`Plan.ConfirmText` gives them. Approval levels and step-up remain the consumer's; cloudkit checks
+only the typed name, and does so before it opens the provider, so a refusal makes no request.
+
+## Why the client is layered as it is
+
+The client an adapter receives puts the egress guard outermost, then retries, then the token, then
+the caller's round tripper. A refused host therefore never reaches the credential source or the
+retry loop. The token is added only to requests for the descriptor's API hosts, and never to a
+request that follows a redirect, even to an allowed redirect host: a token for the API is not a
+token for the provider's object store. Retries never resend a non-idempotent request after an
+ambiguous failure, so a create is not sent twice; a 429 is retried because the provider did not act
+on it.
 
 ## Why it is a library without a CLI framework
 
@@ -68,7 +96,7 @@ before it loads.
 
 | Path | Holds |
 |---|---|
-| `src/` | package `cloudkit`: transport, egress policy, secrets, errors, redaction |
+| `src/` | package `cloudkit`: transport, egress policy, secrets, errors, redaction, the registry, capabilities, plans and `Apply`, retries |
 | `src/internal/policy/` | repository-wide tests: forbidden symbols, workflow guards |
 
 Planned packages are added when they have code: `providers/` (wave 1: Hetzner, DigitalOcean,

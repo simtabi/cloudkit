@@ -3,6 +3,10 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    # Drafts skip every job, so marking a PR ready must start a run; without
+    # ready_for_review the required checks stay "skipped", which a ruleset
+    # counts as passing.
+    types: [opened, synchronize, reopened, ready_for_review]
   # Re-run by hand, from the Actions tab or `gh workflow run ci.yml --repo simtabi/cloudkit`.
   workflow_dispatch:
   # Nothing re-runs after a merge, so this weekly run on main is what catches

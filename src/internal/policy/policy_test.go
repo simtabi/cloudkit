@@ -155,6 +155,12 @@ func TestCIRunsOnPullRequestsNotPushes(t *testing.T) {
 	if n := strings.Count(wf, "cron:"); n != 1 {
 		t.Errorf("ci.yml has %d crons, want exactly one weekly", n)
 	}
+	// Jobs skip drafts, so a PR marked ready must start a run, or its required
+	// checks report "skipped" and the ruleset lets it merge untested.
+	if strings.Contains(wf, "pull_request.draft") &&
+		!regexp.MustCompile(`(?m)^[ \t]*types:\s*\[[^\]]*\bready_for_review\b`).MatchString(wf) {
+		t.Error("ci.yml skips drafts but its pull_request trigger lacks ready_for_review")
+	}
 }
 
 // Third-party actions are pinned to a commit SHA with a version comment;

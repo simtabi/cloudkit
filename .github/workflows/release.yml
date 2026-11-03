@@ -11,6 +11,12 @@ name: Release
 #
 # src/internal/policy's TestReleaseRunsOnlyOnAConfirmedDispatch fails if this
 # file gains an automatic trigger or loses the confirmation.
+#
+# GitHub registers a workflow that has no push or pull_request trigger only
+# when a push to the default branch changes the file; until then a dispatch
+# answers 404 "workflow not found on the default branch". The repository's
+# first push did not register it, so this comment's own merge is what did.
+# Check before tagging: gh workflow list --repo simtabi/cloudkit shows Release.
 on:
   workflow_dispatch:
     inputs:

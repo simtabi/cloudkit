@@ -12,6 +12,13 @@ provisioning hosts, and mesobia for its provider drivers.
 | The generic path: SSH to any host, and a cloud-init renderer | What is installed on the host |
 | One error model, one retry policy, one redaction rule | CLI, API, UI and configuration loading |
 | A contract test kit every adapter passes | |
+| Managed databases: finding them and returning connection details | All database administration, managed engines included |
+| REST descriptors: providers without a compiled adapter, reads and writes | |
+
+cloudkit has no database logic. It finds managed database instances (RDS, Cloud SQL, DigitalOcean
+databases and the like) and says how to reach them, including a provider-issued short-lived connect
+credential where one exists; creating users, databases or pools is the consumer's work, done through
+its own engine adapters.
 
 ## Rules
 
@@ -46,6 +53,17 @@ Each consumer has its own command tree and configuration loader. A library that 
 config package would force them on both, so cloudkit takes plain structs and an injected
 `*slog.Logger`, and each consumer maps its own configuration onto them.
 
+## Why descriptors may write
+
+Most providers in the long tail have an HTTP API and no maintained Go SDK. A descriptor maps that
+API onto the same capability interfaces as a compiled adapter, reads and writes alike, so a new
+provider needs no release. Writes keep every guarantee a compiled adapter has: each one is planned
+against the live state, a destroy must declare what it loses and needs the name typed back, paths
+outside the declared API hosts are rejected, a descriptor never holds a credential, and write
+operations load only from a descriptor that is signed by a trusted key or enabled by the consumer
+for that provider and account. Every descriptor passes the same contract suite as a compiled adapter
+before it loads.
+
 ## Layout
 
 | Path | Holds |
@@ -54,8 +72,8 @@ config package would force them on both, so cloudkit takes plain structs and an 
 | `src/internal/policy/` | repository-wide tests: forbidden symbols, workflow guards |
 
 Planned packages are added when they have code: `providers/` (wave 1: Hetzner, DigitalOcean,
-Linode, Vultr; plus `generic` for any SSH host), `ssh/`, `cloudinit/`, `transport/` and
-`cloudkittest/`.
+Linode, Vultr; plus `generic` for any SSH host), `ssh/`, `cloudinit/`, `transport/`, `descriptor/`
+and `cloudkittest/`.
 
 ---
 

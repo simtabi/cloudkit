@@ -62,7 +62,7 @@ Hosted at <https://opensource.simtabi.com/documentation/simtabi/cloudkit/>.
 ### Guides
 
 - [Installation](docs/installation.md) — the module path, Go version and pinning before `v0.1.0`
-- [Getting started](docs/getting-started.md) — transports, egress policies, secrets and errors
+- [Getting started](docs/getting-started.md) — transports, the registry, plans and applying them, retries, secrets and errors
 - [Architecture](docs/architecture.md) — the rules every adapter follows, and why
 - [Release](docs/release.md) — how a version is tagged and released
 

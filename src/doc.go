@@ -9,6 +9,11 @@
 // credentials travel as [Secret] values that redact themselves in fmt,
 // log/slog and JSON.
 //
-// This release carries the contracts that need no provider. The registry,
-// plans, provider adapters, the SSH path and the cloud-init renderer follow.
+// The caller builds a [Registry] from [Options] and the [Factory] of each
+// provider it wants; nothing registers itself. [Registry.Open] hands an
+// adapter a guarded, authenticated client for one account. Every write is a
+// [Plan] first: [Registry.Apply] refuses a plan whose live state moved, and a
+// destroy whose resource names were not typed back.
+//
+// Provider adapters, the SSH path and the cloud-init renderer follow.
 package cloudkit

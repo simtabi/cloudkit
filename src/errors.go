@@ -26,6 +26,9 @@ var (
 	ErrEgressDenied = errors.New("cloudkit: egress denied")
 	// ErrUnsupported means the adapter does not implement the capability.
 	ErrUnsupported = errors.New("cloudkit: unsupported")
+	// ErrConfirmationRequired means a destroy plan was applied without its
+	// resource names typed back (C7).
+	ErrConfirmationRequired = errors.New("cloudkit: confirmation required")
 )
 
 // EgressError names the host an [EgressPolicy] refused. It matches
@@ -46,3 +49,32 @@ func (e *EgressError) Error() string {
 
 // Unwrap lets errors.Is match [ErrEgressDenied].
 func (e *EgressError) Unwrap() error { return ErrEgressDenied }
+
+// PlanError says why [Registry.Apply] refused a plan before changing anything:
+// its live state moved, it expired, or it was altered. It matches
+// [ErrConflict].
+type PlanError struct {
+	PlanID string
+	Reason string
+}
+
+func (e *PlanError) Error() string {
+	return fmt.Sprintf("cloudkit: conflict: plan %s: %s", e.PlanID, e.Reason)
+}
+
+// Unwrap lets errors.Is match [ErrConflict].
+func (e *PlanError) Unwrap() error { return ErrConflict }
+
+// UnsupportedError names the capability interface a provider does not
+// implement. It matches [ErrUnsupported].
+type UnsupportedError struct {
+	Provider  string // descriptor ID
+	Interface string // e.g. "Applier", "ServerLifecycle"
+}
+
+func (e *UnsupportedError) Error() string {
+	return fmt.Sprintf("cloudkit: unsupported: provider %s does not implement %s", e.Provider, e.Interface)
+}
+
+// Unwrap lets errors.Is match [ErrUnsupported].
+func (e *UnsupportedError) Unwrap() error { return ErrUnsupported }

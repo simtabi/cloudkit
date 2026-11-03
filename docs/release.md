@@ -5,6 +5,9 @@ and a GitHub release whose body is the version's CHANGELOG section. There are no
 
 ## Steps
 
+0. Check the workflow is registered: `gh workflow list --repo simtabi/cloudkit` lists `Release`.
+   GitHub registers a dispatch-only workflow only when a push to `main` changes it, so a fresh copy
+   of the repository answers 404 until then.
 1. Move the `[Unreleased]` entries in `CHANGELOG.md` under a dated `## [X.Y.Z] - YYYY-MM-DD`
    heading, through a pull request.
 2. After it merges, tag the merge commit and push the tag:

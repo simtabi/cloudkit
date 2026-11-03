@@ -78,8 +78,8 @@ URL with them before logging it.
 ## What comes next
 
 The registry, capability probes, plans with drift refusal, the contract test kit, the SSH path, the
-cloud-init renderer and the first provider adapters (Hetzner, DigitalOcean, Linode, Vultr) are
-planned; see [Architecture](architecture.md).
+cloud-init renderer, the first provider adapters (Hetzner, DigitalOcean, Linode, Vultr), managed
+database discovery and REST descriptors are planned; see [Architecture](architecture.md).
 
 ---
 

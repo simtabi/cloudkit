@@ -4,6 +4,9 @@
 package policy
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -33,6 +36,7 @@ var forbidden = []struct {
 	{regexp.MustCompile(`\bInsecureIgnoreHostKey\b`), "C8: SSH host keys are always verified"},
 	{regexp.MustCompile(`\bPasswordCallback\b|\bssh\.Password\(`), "C8: no SSH password auth"},
 	{regexp.MustCompile(`(?m)^func init\(\)`), "C9: no init registration"},
+	{regexp.MustCompile(`(?m)^var\s+\w+\s*(=\s*)?[&*]?(http\.Client|Registry|NewRegistry\(|NewHTTPClient\()`), "C9: no package-level clients or registries"},
 	{regexp.MustCompile(`\bslog\.(Default|SetDefault|Info|Warn|Error|Debug)\(|\blog\.(Print|Fatal|Panic)`), "C10: log through the injected *slog.Logger"},
 }
 
@@ -179,5 +183,191 @@ func TestActionPins(t *testing.T) {
 	}
 	if seen < 3 {
 		t.Fatalf("read %d action references, below the floor of 3", seen)
+	}
+}
+
+// parsePackage parses the non-test files of package cloudkit, at the module
+// root, and fails below a floor so a parse that finds nothing cannot pass.
+func parsePackage(t *testing.T) []*ast.File {
+	t.Helper()
+	root := moduleRoot(t)
+	matches, err := filepath.Glob(filepath.Join(root, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	var files []*ast.File
+	for _, m := range matches {
+		if strings.HasSuffix(m, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, m, nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.Name.Name == "cloudkit" {
+			files = append(files, f)
+		}
+	}
+	const minSourceFiles = 11
+	if len(files) < minSourceFiles {
+		t.Fatalf("parsed %d source files of package cloudkit, below the floor of %d", len(files), minSourceFiles)
+	}
+	return files
+}
+
+// C10: every method of an exported interface, every method of *Registry and
+// every exported func-typed field takes a context.Context first, so the
+// caller owns cancellation. The exemptions are pure accessors that reach
+// nothing, each with its reason.
+var contextExempt = map[string]string{
+	"Provider.Descriptor":  "returns a constant description; no I/O",
+	"Registry.Descriptors": "returns the factories' descriptions; no I/O",
+}
+
+func TestContextFirst(t *testing.T) {
+	checked := 0
+	check := func(name string, ft *ast.FuncType) {
+		checked++
+		if _, ok := contextExempt[name]; ok {
+			return
+		}
+		ps := ft.Params.List
+		if len(ps) == 0 || !isContext(ps[0].Type) {
+			t.Errorf("%s does not take context.Context first (C10)", name)
+		}
+	}
+	for _, f := range parsePackage(t) {
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.FuncDecl:
+				if d.Recv != nil && d.Name.IsExported() && recvName(d.Recv) == "Registry" {
+					check("Registry."+d.Name.Name, d.Type)
+				}
+			case *ast.GenDecl:
+				for _, spec := range d.Specs {
+					ts, ok := spec.(*ast.TypeSpec)
+					if !ok || !ts.Name.IsExported() {
+						continue
+					}
+					switch tt := ts.Type.(type) {
+					case *ast.InterfaceType:
+						for _, m := range tt.Methods.List {
+							if ft, ok := m.Type.(*ast.FuncType); ok {
+								check(ts.Name.Name+"."+m.Names[0].Name, ft)
+							}
+						}
+					case *ast.StructType:
+						for _, fld := range tt.Fields.List {
+							ft, ok := fld.Type.(*ast.FuncType)
+							if !ok {
+								continue
+							}
+							for _, n := range fld.Names {
+								if n.IsExported() {
+									check(ts.Name.Name+"."+n.Name, ft)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	// Measured 2026-11-03: Registry.{Open,Apply,Descriptors}, Provider's 3,
+	// Applier's 2, CredentialSource.Token, Factory.New and Transport.Dial.
+	if checked < 10 {
+		t.Fatalf("checked %d signatures, below the floor of 10", checked)
+	}
+	for name := range contextExempt {
+		if !strings.Contains(name, ".") {
+			t.Errorf("exemption %q is not Type.Method", name)
+		}
+	}
+}
+
+func isContext(e ast.Expr) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	pkg, ok := sel.X.(*ast.Ident)
+	return ok && pkg.Name == "context" && sel.Sel.Name == "Context"
+}
+
+func recvName(fl *ast.FieldList) string {
+	e := fl.List[0].Type
+	if st, ok := e.(*ast.StarExpr); ok {
+		e = st.X
+	}
+	if id, ok := e.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
+}
+
+// shipped is every exported name package cloudkit has carried. Removing one
+// breaks a caller this repository cannot see, so it is deprecated in place
+// instead; this test fails if one disappears. Append, never delete.
+var shipped = []string{
+	// Phase 0, c1a6a98.
+	"Transport", "Transport.Validate", "EgressPolicy", "EgressPolicy.Validate", "NewHTTPClient",
+	"Secret", "NewSecret", "Secret.Reveal", "Secret.IsZero", "Secret.String", "Secret.GoString",
+	"Secret.Format", "Secret.LogValue", "Secret.MarshalJSON", "Secret.MarshalText",
+	"ErrInvalidTransport", "ErrDenied", "ErrNotFound", "ErrConflict", "ErrRateLimited",
+	"ErrEgressDenied", "ErrUnsupported", "EgressError", "EgressError.Error", "EgressError.Unwrap",
+	"Redact", "RedactBody", "MaxBodyBytes",
+	// Phase 1, core.
+	"CredentialSource", "Options", "Options.Validate", "TokenModel", "TokenModel.String",
+	"Scoped", "ReadOrReadWrite", "PerProduct", "Unscoped", "Module", "Descriptor",
+	"Descriptor.Validate", "Descriptor.Egress", "Resource", "Filter", "Filter.Matches", "Provider",
+	"Account", "Factory", "Registry", "NewRegistry", "Registry.Descriptors", "Registry.Open",
+	"Registry.Apply", "Capability", "Capability.IsWrite", "Access", "Access.String", "Unknown",
+	"Allowed", "Denied", "CapSet", "CapSet.Get", "CapSet.Allowed", "CapSet.Set",
+	"CapSet.Capabilities", "CapInventory", "CapServerCreate", "CapServerResize", "CapServerDestroy",
+	"CapServerPower", "CapServerUpdate", "CapFirewallRead", "CapFirewallWrite", "CapNetworkRead",
+	"CapNetworkWrite", "CapVolumeRead", "CapVolumeWrite", "CapSnapshotRead", "CapSnapshotWrite",
+	"CapObjectStorageRead", "CapObjectStorageWrite", "CapDNSRead", "CapDNSWrite", "CapHostKeysRead",
+	"CapCostRead", "CapManagedDatabasesRead", "CapManagedDatabasesConnect", "PlanTTL",
+	"ChangeAction", "Create", "Update", "Delete", "Change", "Money", "Plan", "NewPlan",
+	"Plan.IsDestroy", "Plan.ConfirmText", "Confirmation", "Result", "Applier",
+	"ErrConfirmationRequired", "PlanError", "PlanError.Error", "PlanError.Unwrap",
+	"UnsupportedError", "UnsupportedError.Error", "UnsupportedError.Unwrap", "RetryPolicy",
+	"RetryPolicy.Validate", "RetryPolicy.Backoff", "RateLimitError", "RateLimitError.Error",
+	"RateLimitError.Unwrap", "DefaultMaxAttempts", "DefaultBaseDelay", "DefaultMaxDelay",
+}
+
+func TestShippedSurfaceIsPreserved(t *testing.T) {
+	have := map[string]bool{}
+	for _, f := range parsePackage(t) {
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.FuncDecl:
+				name := d.Name.Name
+				if d.Recv != nil {
+					name = recvName(d.Recv) + "." + name
+				}
+				have[name] = true
+			case *ast.GenDecl:
+				for _, spec := range d.Specs {
+					switch sp := spec.(type) {
+					case *ast.TypeSpec:
+						have[sp.Name.Name] = true
+					case *ast.ValueSpec:
+						for _, n := range sp.Names {
+							have[n.Name] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, name := range shipped {
+		if !have[name] {
+			t.Errorf("exported %s has gone; deprecate it in place instead of removing it", name)
+		}
+	}
+	if len(have) < len(shipped) {
+		t.Fatalf("found %d declarations, fewer than the %d shipped names", len(have), len(shipped))
 	}
 }

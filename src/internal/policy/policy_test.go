@@ -15,7 +15,7 @@ import (
 // minGoFiles is a floor on how many Go files the scan reads. A walk that
 // stops matching would otherwise report a clean module. Raise it as the
 // module grows; never lower it to make a failure go away.
-const minGoFiles = 7
+const minGoFiles = 17
 
 // forbidden are the symbols that would let a request or a session bypass the
 // caller's transport, egress controls or host-key checks, or that would give
@@ -44,6 +44,8 @@ var exempt = map[string]map[string]int{
 	"transport.go": {`\bhttp\.DefaultTransport\b`: 2},
 	// NewHTTPClient's tests hand it in to prove it is refused.
 	"cloudkit_test.go": {`\bhttp\.DefaultTransport\b`: 2},
+	// NewRegistry's tests hand it in to prove it is refused (C2).
+	"core_test.go": {`\bhttp\.DefaultTransport\b`: 1},
 }
 
 func moduleRoot(t *testing.T) string {

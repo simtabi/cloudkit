@@ -46,6 +46,29 @@ jobs:
       - name: Lint
         run: make lint
 
+  # dbpantry and mesobia ship binaries for macOS and Windows, so cloudkit must
+  # build and pass there too. Pull requests test on Linux only; the other OSes
+  # run weekly and by hand.
+  cross-os:
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: src/go.mod
+          cache: false
+      - name: Gate
+        shell: bash
+        run: make ci
+
   gitleaks:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest

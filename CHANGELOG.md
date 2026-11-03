@@ -19,3 +19,4 @@ All notable changes to this project are documented here. The format follows
   workflow triggers; action pinning.
 - CI on pull requests, by dispatch and weekly; a release workflow that runs only on a confirmed
   dispatch against a `v` tag.
+- A weekly and on-demand CI leg on macOS and Windows; pull requests still test on Linux only.

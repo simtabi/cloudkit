@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  # Re-run by hand, from the Actions tab or `gh workflow run ci.yml --repo simtabi/cloudkit`.
+  workflow_dispatch:
+  # Nothing re-runs after a merge, so this weekly run on main is what catches
+  # drift there (a toolchain release, two green PRs that interact).
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+# Our own modules are fetched from git, never through proxy.golang.org or
+# sum.golang.org, so a CI build can never feed a version into the public cache.
+env:
+  GOPRIVATE: github.com/simtabi/*
+  GONOSUMDB: github.com/simtabi/*
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          # The module is src/; its go.mod names the toolchain.
+          go-version-file: src/go.mod
+          # No third-party dependency yet, so there is no go.sum to key a cache on.
+          cache: false
+      # One gate, defined once, in the Makefile: fmt, vet, test (policy included).
+      - name: Gate
+        run: make ci
+      # Installed with the runner's Go 1.27, so the linter understands the
+      # stdlib it analyses; a release binary built with an older Go can panic on it.
+      - name: Lint
+        run: make lint
+
+  gitleaks:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The binary directly: gitleaks-action needs a paid licence for organisation repositories.
+      - name: Install gitleaks
+        run: |
+          VERSION=8.30.1
+          # From the release's gitleaks_8.30.1_checksums.txt; bump both together.
+          SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          curl -fsSL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+      - name: Scan for secrets
+        run: gitleaks detect --source . --redact --no-banner --exit-code 1
+
+  scripts:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck --severity=warning src/scripts/extract-changelog.sh
+      # The release body comes from this script; prove it finds a real section.
+      - name: The changelog extractor reads a section
+        run: |
+          printf '## [Unreleased]\n\n## [9.9.9] - 2026-01-01\n\n### Added\n\n- A line.\n' > "$RUNNER_TEMP/CHANGELOG.md"
+          CHANGELOG_FILE="$RUNNER_TEMP/CHANGELOG.md" src/scripts/extract-changelog.sh v9.9.9 | grep -q 'A line.'
+          if CHANGELOG_FILE="$RUNNER_TEMP/CHANGELOG.md" src/scripts/extract-changelog.sh v1.0.0; then
+            echo "a missing section must fail"; exit 1
+          fi

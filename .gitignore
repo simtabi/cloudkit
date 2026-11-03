@@ -1,0 +1,13 @@
+# Lock files are never tracked (org rule); go.sum is a checksum database, not a lock, and is tracked once a dependency exists.
+/build/
+/dist/
+coverage.out
+*.test
+*.prof
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+.claude/

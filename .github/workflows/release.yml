@@ -1,0 +1,88 @@
+name: Release
+
+# cloudkit is a library: a release is a pair of git tags and a GitHub release
+# whose body is the tagged CHANGELOG section. There are no binaries to build.
+#
+# Nothing here starts on a tag push. Pushing vX.Y.Z records a version and
+# publishes nothing; the release is dispatched by hand against that tag, with
+# an explicit confirmation, and refuses to run without both:
+#
+#   gh workflow run release.yml --repo simtabi/cloudkit --ref vX.Y.Z -f confirm=release-go
+#
+# src/internal/policy's TestReleaseRunsOnlyOnAConfirmedDispatch fails if this
+# file gains an automatic trigger or loses the confirmation.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type release-go to publish the GitHub release for the tag this run is dispatched on
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the src/ alias tag and create the release
+    steps:
+      - name: Refuse without confirmation or a release tag
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "${CONFIRM}" != "release-go" ]; then
+            echo "::error::confirm must be release-go; nothing was published"
+            exit 1
+          fi
+          case "${GITHUB_REF}" in
+            refs/tags/v[0-9]*) ;;
+            *) echo "::error::dispatch this on a vX.Y.Z tag (--ref vX.Y.Z), not ${GITHUB_REF}"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Go resolves a module in a subdirectory only through a tag carrying that
+      # prefix, so src/vX.Y.Z must sit on the same commit. Create it if missing;
+      # refuse if it exists elsewhere, since tags are final and never moved.
+      - name: Module alias tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          alias="src/${TAG}"
+          head="$(git rev-parse "${TAG}^{commit}")"
+          if git rev-parse -q --verify "refs/tags/${alias}" >/dev/null; then
+            at="$(git rev-parse "${alias}^{commit}")"
+            if [ "${at}" != "${head}" ]; then
+              echo "::error::${alias} points at ${at}, not ${head}; tags are final, cut the next version"
+              exit 1
+            fi
+          else
+            git tag "${alias}" "${head}"
+            git push origin "refs/tags/${alias}"
+          fi
+
+      - name: Release notes from the CHANGELOG section
+        env:
+          TAG: ${{ github.ref_name }}
+        run: src/scripts/extract-changelog.sh "${TAG}" > "${RUNNER_TEMP}/notes.md"
+
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" --notes-file "${RUNNER_TEMP}/notes.md"
+          else
+            gh release create "${TAG}" --verify-tag --title "${TAG}" --notes-file "${RUNNER_TEMP}/notes.md"
+          fi

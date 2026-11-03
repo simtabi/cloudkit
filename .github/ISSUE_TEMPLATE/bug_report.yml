@@ -1,0 +1,34 @@
+name: Bug report
+description: Report a defect in cloudkit
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Remove every token, key and host you do not want public.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest Go program or test that shows it.
+      render: go
+  - type: input
+    id: version
+    attributes:
+      label: cloudkit version or commit
+      placeholder: "from go.mod: github.com/simtabi/cloudkit/src v0.0.0-…"
+    validations:
+      required: true
+  - type: input
+    id: go
+    attributes:
+      label: Go version
+      placeholder: "output of: go version"
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and adapter, if any
+      placeholder: "hetzner, digitalocean, generic, …"

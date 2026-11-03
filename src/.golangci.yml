@@ -1,0 +1,27 @@
+# golangci-lint gate. Run: make lint
+#
+# The standard set plus the linters that catch the defects this module exists
+# to prevent: unchecked errors, leaked response bodies, contexts not passed on.
+# No path exclusions; _test.go files are held to the same bar.
+version: "2"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - gosec
+    - misspell
+    - noctx
+    - revive
+  exclusions:
+    generated: lax
+
+formatters:
+  enable:
+    - gofmt

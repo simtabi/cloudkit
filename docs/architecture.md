@@ -36,11 +36,15 @@ its own engine adapters.
 | C10 | `context.Context` first on every call; the logger is injected |
 
 C1 to C7, C9 and C10 are implemented in this release; C8 arrives with the SSH path. A policy test
-in `src/internal/policy` scans every Go file for the symbols that would break C1, C4, C8, C9 and
-C10, with an exemption list that records the exact count it allows. Three more policy tests read
-the package's syntax: every interface method, `*Registry` method and exported function field takes
-a `context.Context` first (C10); no package-level client or registry exists (C9); and no exported
-name the package has shipped disappears.
+in `src/internal/policy` scans every Go file of the module, `cloudkittest` included, for the
+symbols that would break C1, C4, C8, C9 and C10, with an exemption list that records the exact count
+it allows. Three more policy tests read the syntax of `cloudkit` and `cloudkittest`: every interface
+method, `*Registry` method, exported function type and exported function field takes a
+`context.Context` first (C10); no package-level client or registry exists (C9); and no exported
+name either package has shipped disappears.
+
+Every adapter must also pass the contract suite in `cloudkittest`: nine cases, one per rule a
+provider could break, run over recorded responses. See [`cloudkittest`](tools/cloudkittest.md).
 
 ## Why the caller owns the transport
 
@@ -75,6 +79,30 @@ token for the provider's object store. Retries never resend a non-idempotent req
 ambiguous failure, so a create is not sent twice; a 429 is retried because the provider did not act
 on it.
 
+## Why the contract suite replays spec-checked recordings
+
+An adapter is proven against what the provider actually sends, without spending money or needing a
+token on every pull request. Each case replays a cassette through a `Recorder`, which refuses any
+request the cassette does not hold, so an adapter cannot reach the network and cannot make a call
+nobody recorded. A case also fails when a recorded request goes unused, because the defect is often
+the call an adapter skipped, such as the second live-state read that catches drift.
+
+Recordings go stale, and hand-edited ones lie. So every response, recorded or synthetic, is checked
+against the provider's published OpenAPI document when the recordings load, and a fixture that no
+longer matches the schema does not load at all. A write path with no recording yet replays a
+response generated from the document's own examples, marked synthetic. The validator implements a
+small JSON Schema subset and refuses any keyword outside it, rather than skipping it: a schema
+check that quietly ignores part of the schema reports a pass it did not earn.
+
+A recording is committed to a public repository, so the loader refuses one that carries an
+`Authorization` header, a cookie, an API-key header, or any value the module's redactor would
+change. The recorder never compares or stores request headers, so the token cloudkit adds to each
+request has nowhere to land.
+
+Each case runs with a token generated for that run. The redaction case puts the token where real
+failures put it, in a proxy error that echoes the request and in a provider body that echoes the
+token, and then searches every error, log record, panic and URL for it.
+
 ## Why it is a library without a CLI framework
 
 Each consumer has its own command tree and configuration loader. A library that brought cobra or a
@@ -97,11 +125,12 @@ before it loads.
 | Path | Holds |
 |---|---|
 | `src/` | package `cloudkit`: transport, egress policy, secrets, errors, redaction, the registry, capabilities, plans and `Apply`, retries |
+| `src/cloudkittest/` | the contract suite (`Run`, `Check`), the replaying `Recorder`, recordings and the OpenAPI validator |
 | `src/internal/policy/` | repository-wide tests: forbidden symbols, workflow guards |
 
 Planned packages are added when they have code: `providers/` (wave 1: Hetzner, DigitalOcean,
-Linode, Vultr; plus `generic` for any SSH host), `ssh/`, `cloudinit/`, `transport/`, `descriptor/`
-and `cloudkittest/`.
+Linode, Vultr; plus `generic` for any SSH host), `ssh/`, `cloudinit/`, `transport/` and
+`descriptor/`.
 
 ---
 

@@ -269,3 +269,25 @@ func TestEgressBoundsRedirectChains(t *testing.T) {
 		t.Fatalf("followed %d hops", len(rt.seen))
 	}
 }
+
+// RedactError strips credentials from the message and keeps the chain, so an
+// adapter can redact a transport error and its caller still matches
+// ErrEgressDenied.
+func TestRedactErrorKeepsTheChain(t *testing.T) {
+	if RedactError(nil) != nil {
+		t.Fatal("RedactError(nil) is not nil")
+	}
+	tok := rand.Text()
+	cause := &EgressError{Host: "elsewhere.test", Reason: "proxy said Authorization: Bearer " + tok}
+	err := RedactError(fmt.Errorf("probe: %w", cause))
+	if strings.Contains(err.Error(), tok) {
+		t.Errorf("the token survived: %q", err.Error())
+	}
+	if !errors.Is(err, ErrEgressDenied) {
+		t.Error("errors.Is no longer reaches ErrEgressDenied")
+	}
+	var eg *EgressError
+	if !errors.As(err, &eg) || eg.Host != "elsewhere.test" {
+		t.Errorf("errors.As lost the EgressError: %v", eg)
+	}
+}

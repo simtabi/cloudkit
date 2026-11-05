@@ -1,0 +1,123 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fake Cloud API",
+    "version": "1.0.0",
+    "description": "A hand-written document for cloudkittest's own tests. It describes no real provider."
+  },
+  "servers": [{"url": "https://api.fake.test/v1"}],
+  "paths": {
+    "/token": {
+      "get": {
+        "operationId": "getToken",
+        "summary": "What the token may do",
+        "responses": {
+          "200": {
+            "description": "The token's scope",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Token"}}}
+          },
+          "default": {
+            "description": "An error",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/resources": {
+      "get": {
+        "operationId": "listResources",
+        "responses": {
+          "200": {
+            "description": "Every resource in the account",
+            "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Resource"}}}}
+          },
+          "403": {
+            "description": "The token may not list",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "operationId": "createResource",
+        "responses": {
+          "201": {
+            "description": "The created resource",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Resource"},
+                "example": {"kind": "server", "id": "s9", "name": "web-2", "region": "fsn1", "attrs": {"size": "small"}}
+              }
+            }
+          },
+          "403": {
+            "description": "The token may not write",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/resources/{id}": {
+      "delete": {
+        "operationId": "deleteResource",
+        "responses": {
+          "200": {
+            "description": "The action that deletes the resource and what is attached to it",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ActionEnvelope"},
+                "examples": {
+                  "deleted": {"value": {"action": {"id": "a1", "command": "delete_resource", "status": "success"}}},
+                  "running": {"value": {"action": {"id": "a2", "command": "delete_resource", "status": "running"}}}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Token": {
+        "type": "object",
+        "required": ["write"],
+        "properties": {"write": {"type": "boolean", "description": "true when the token may write"}}
+      },
+      "Resource": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["server", "volume", "ipv4"]},
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "region": {"type": "string", "nullable": true},
+          "labels": {"type": "object", "additionalProperties": {"type": "string"}},
+          "attrs": {"type": "object", "additionalProperties": {"type": "string"}}
+        }
+      },
+      "Action": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": {"type": "string"},
+          "command": {"type": "string"},
+          "status": {"type": "string", "enum": ["running", "success", "error"]}
+        }
+      },
+      "ActionEnvelope": {
+        "type": "object",
+        "required": ["action"],
+        "properties": {"action": {"$ref": "#/components/schemas/Action"}}
+      },
+      "Error": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {"message": {"type": "string"}}
+      }
+    }
+  }
+}

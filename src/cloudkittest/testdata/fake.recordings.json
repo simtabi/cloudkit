@@ -1,0 +1,322 @@
+{
+  "provider": "fake",
+  "cassettes": {
+    "read-write": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": true
+          }
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/resources"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": [
+            {
+              "kind": "server",
+              "id": "s1",
+              "name": "web-1",
+              "region": "fsn1",
+              "labels": {
+                "env": "production"
+              },
+              "attrs": {
+                "size": "small"
+              }
+            },
+            {
+              "kind": "volume",
+              "id": "v1",
+              "name": "web-1-data",
+              "region": "fsn1",
+              "attrs": {
+                "attached_to": "s1",
+                "size_gb": "10"
+              }
+            },
+            {
+              "kind": "ipv4",
+              "id": "ip1",
+              "name": "web-1-ip",
+              "region": "fsn1",
+              "attrs": {
+                "attached_to": "s1"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "read-only": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": false
+          }
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": false
+          }
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": false
+          }
+        }
+      }
+    ],
+    "drift": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": true
+          }
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/resources"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": [
+            {
+              "kind": "server",
+              "id": "s1",
+              "name": "web-1",
+              "region": "fsn1",
+              "labels": {
+                "env": "production"
+              },
+              "attrs": {
+                "size": "small"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/resources"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": [
+            {
+              "kind": "server",
+              "id": "s1",
+              "name": "web-1",
+              "region": "fsn1",
+              "labels": {
+                "env": "production"
+              },
+              "attrs": {
+                "size": "large"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "destroy": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": true
+          }
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/resources"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": [
+            {
+              "kind": "server",
+              "id": "s1",
+              "name": "web-1",
+              "region": "fsn1",
+              "labels": {
+                "env": "production"
+              },
+              "attrs": {
+                "size": "small"
+              }
+            },
+            {
+              "kind": "volume",
+              "id": "v1",
+              "name": "web-1-data",
+              "region": "fsn1",
+              "attrs": {
+                "attached_to": "s1",
+                "size_gb": "10"
+              }
+            },
+            {
+              "kind": "ipv4",
+              "id": "ip1",
+              "name": "web-1-ip",
+              "region": "fsn1",
+              "attrs": {
+                "attached_to": "s1"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/resources"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": [
+            {
+              "kind": "server",
+              "id": "s1",
+              "name": "web-1",
+              "region": "fsn1",
+              "labels": {
+                "env": "production"
+              },
+              "attrs": {
+                "size": "small"
+              }
+            },
+            {
+              "kind": "volume",
+              "id": "v1",
+              "name": "web-1-data",
+              "region": "fsn1",
+              "attrs": {
+                "attached_to": "s1",
+                "size_gb": "10"
+              }
+            },
+            {
+              "kind": "ipv4",
+              "id": "ip1",
+              "name": "web-1-ip",
+              "region": "fsn1",
+              "attrs": {
+                "attached_to": "s1"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "request": {
+          "method": "DELETE",
+          "url": "https://api.fake.test/v1/resources/s1"
+        },
+        "synthetic": {
+          "status": 200,
+          "example": "deleted"
+        }
+      }
+    ]
+  }
+}

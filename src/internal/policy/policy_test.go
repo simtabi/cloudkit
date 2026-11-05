@@ -18,7 +18,7 @@ import (
 // minGoFiles is a floor on how many Go files the scan reads. A walk that
 // stops matching would otherwise report a clean module. Raise it as the
 // module grows; never lower it to make a failure go away.
-const minGoFiles = 17
+const minGoFiles = 28
 
 // forbidden are the symbols that would let a request or a session bypass the
 // caller's transport, egress controls or host-key checks, or that would give
@@ -192,12 +192,30 @@ func TestActionPins(t *testing.T) {
 	}
 }
 
+// shippedPackages are the packages whose syntax the AST guards read: the
+// directory under the module root, the package name, and a floor on how many
+// non-test files they must find.
+var shippedPackages = []struct {
+	dir, name string
+	minFiles  int
+}{
+	{".", "cloudkit", 11},
+	{"cloudkittest", "cloudkittest", 7},
+}
+
 // parsePackage parses the non-test files of package cloudkit, at the module
 // root, and fails below a floor so a parse that finds nothing cannot pass.
 func parsePackage(t *testing.T) []*ast.File {
 	t.Helper()
+	p := shippedPackages[0]
+	return parseDir(t, p.dir, p.name, p.minFiles)
+}
+
+// parseDir parses the non-test files of one package and fails below a floor.
+func parseDir(t *testing.T, dir, name string, minSourceFiles int) []*ast.File {
+	t.Helper()
 	root := moduleRoot(t)
-	matches, err := filepath.Glob(filepath.Join(root, "*.go"))
+	matches, err := filepath.Glob(filepath.Join(root, dir, "*.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,20 +229,20 @@ func parsePackage(t *testing.T) []*ast.File {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.Name.Name == "cloudkit" {
+		if f.Name.Name == name {
 			files = append(files, f)
 		}
 	}
-	const minSourceFiles = 11
 	if len(files) < minSourceFiles {
-		t.Fatalf("parsed %d source files of package cloudkit, below the floor of %d", len(files), minSourceFiles)
+		t.Fatalf("parsed %d source files of package %s, below the floor of %d", len(files), name, minSourceFiles)
 	}
 	return files
 }
 
-// C10: every method of an exported interface, every method of *Registry and
-// every exported func-typed field takes a context.Context first, so the
-// caller owns cancellation. The exemptions are pure accessors that reach
+// C10: every method of an exported interface, every method of *Registry,
+// every exported func type and every exported func-typed field takes a
+// context.Context first, so the caller owns cancellation. It reads every
+// shipped package, cloudkittest's hooks included. The exemptions are pure accessors that reach
 // nothing, each with its reason.
 var contextExempt = map[string]string{
 	"Provider.Descriptor":  "returns a constant description; no I/O",
@@ -243,7 +261,11 @@ func TestContextFirst(t *testing.T) {
 			t.Errorf("%s does not take context.Context first (C10)", name)
 		}
 	}
-	for _, f := range parsePackage(t) {
+	var files []*ast.File
+	for _, p := range shippedPackages {
+		files = append(files, parseDir(t, p.dir, p.name, p.minFiles)...)
+	}
+	for _, f := range files {
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:
@@ -257,6 +279,8 @@ func TestContextFirst(t *testing.T) {
 						continue
 					}
 					switch tt := ts.Type.(type) {
+					case *ast.FuncType:
+						check(ts.Name.Name, tt)
 					case *ast.InterfaceType:
 						for _, m := range tt.Methods.List {
 							if ft, ok := m.Type.(*ast.FuncType); ok {
@@ -280,10 +304,11 @@ func TestContextFirst(t *testing.T) {
 			}
 		}
 	}
-	// Measured 2026-11-03: Registry.{Open,Apply,Descriptors}, Provider's 3,
-	// Applier's 2, CredentialSource.Token, Factory.New and Transport.Dial.
-	if checked < 10 {
-		t.Fatalf("checked %d signatures, below the floor of 10", checked)
+	// Measured 2026-11-04: Registry.{Open,Apply,Descriptors}, Provider's 3,
+	// Applier's 2, CredentialSource.Token, Factory.New and Transport.Dial;
+	// cloudkittest's PlanFunc, CloudInit.Render and SSH.Handshake.
+	if checked < 14 {
+		t.Fatalf("checked %d signatures, below the floor of 14", checked)
 	}
 	for name := range contextExempt {
 		if !strings.Contains(name, ".") {
@@ -341,11 +366,39 @@ var shipped = []string{
 	"UnsupportedError", "UnsupportedError.Error", "UnsupportedError.Unwrap", "RetryPolicy",
 	"RetryPolicy.Validate", "RetryPolicy.Backoff", "RateLimitError", "RateLimitError.Error",
 	"RateLimitError.Unwrap", "DefaultMaxAttempts", "DefaultBaseDelay", "DefaultMaxDelay",
+	// Phase 2, contract kit.
+	"RedactError",
+}
+
+// shippedKit is every exported name package cloudkittest has carried, under
+// the same rule as shipped. Append, never delete.
+var shippedKit = []string{
+	// Phase 2, contract kit.
+	"Run", "Check", "Cases", "Suite", "Write", "PlanFunc", "Destroy", "CloudInit", "SSH",
+	"OneTimeTokenField", "PolicyKnownHosts", "PolicyPinned", "PolicyFromProvider", "PolicyAcceptNew",
+	"CaseTransport", "CaseNilTransport", "CaseEgress", "CaseReadOnly", "CasePlanDrift", "CaseDestroy",
+	"CaseRedaction", "CaseCloudInit", "CaseSSH", "CassetteReadWrite", "CassetteReadOnly",
+	"CassetteDrift", "CassetteDestroy", "Status", "Status.String", "Passed", "Failed", "Skipped",
+	"CaseResult", "Report", "Report.Failed", "Report.Case",
+	"Spec", "ParseSpec", "LoadSpec", "Spec.ValidateResponse", "Spec.Synthesize", "Response",
+	"Recordings", "ParseRecordings", "LoadRecordings", "Recordings.Provider", "Recordings.Cassettes",
+	"Recordings.Len", "Recorder", "NewRecorder", "Recorder.RoundTrip", "Recorder.Requests",
+	"Recorder.Unexpected", "Recorder.Unused", "Recorder.Err", "Request", "UnexpectedRequestError",
+	"UnexpectedRequestError.Error", "UnexpectedRequestError.Unwrap", "SchemaError", "SchemaError.Error",
+	"SchemaError.Unwrap", "ErrSchemaViolation", "ErrUnsupportedKeyword", "ErrNotInSpec",
+	"ErrCredentialInRecording", "ErrUnexpectedRequest",
 }
 
 func TestShippedSurfaceIsPreserved(t *testing.T) {
+	checkSurface(t, parsePackage(t), shipped)
+	kit := shippedPackages[1]
+	checkSurface(t, parseDir(t, kit.dir, kit.name, kit.minFiles), shippedKit)
+}
+
+func checkSurface(t *testing.T, files []*ast.File, shipped []string) {
+	t.Helper()
 	have := map[string]bool{}
-	for _, f := range parsePackage(t) {
+	for _, f := range files {
 		for _, decl := range f.Decls {
 			switch d := decl.(type) {
 			case *ast.FuncDecl:

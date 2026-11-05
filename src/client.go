@@ -74,11 +74,18 @@ type redactedError struct {
 func (e *redactedError) Error() string { return e.msg }
 func (e *redactedError) Unwrap() error { return e.err }
 
-// redactErr is how an error from outside the module (a provider, an adapter,
-// a credential source) leaves it.
-func redactErr(err error) error {
+// RedactError returns err with its message passed through [Redact], while
+// errors.Is and errors.As still see the original chain. An adapter returns
+// every error it did not build itself (a transport failure, a provider's
+// response) through it, so a credential a proxy or a provider echoed back
+// never leaves the module. It returns nil for a nil error.
+func RedactError(err error) error {
 	if err == nil {
 		return nil
 	}
 	return &redactedError{msg: Redact(err.Error()), err: err}
 }
+
+// redactErr is how an error from outside the module (a provider, an adapter,
+// a credential source) leaves it.
+func redactErr(err error) error { return RedactError(err) }

@@ -1,0 +1,24 @@
+{
+  "provider": "fake",
+  "cassettes": {
+    "read-write": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.fake.test/v1/token"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "Content-Type": [
+              "application/json"
+            ]
+          },
+          "body": {
+            "write": "yes"
+          }
+        }
+      }
+    ]
+  }
+}

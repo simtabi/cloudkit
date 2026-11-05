@@ -38,6 +38,27 @@ All notable changes to this project are documented here. The format follows
 - `UnsupportedError`, matching `ErrUnsupported`.
 - Policy tests: context first on every interface and registry method (C10), no package-level client
   or registry (C9), and no shipped exported name removed.
+- `RedactError`, which redacts an error's message and keeps its chain, so an adapter can return a
+  transport or provider error without leaking a credential and its caller still matches
+  `ErrEgressDenied` or `ErrDenied`.
+- Package `cloudkittest`, the contract kit. `Run` and `Check` run nine contract cases against any
+  `Provider` (transport only, nil transport, egress, read-only token, plan drift, destroy, redaction,
+  cloud-init and SSH), each over its own registry, a token generated for the run and no network;
+  `Report` gives each case's result.
+- `cloudkittest.Recorder`, an `http.RoundTripper` that replays one cassette, answers each interaction
+  once and in order, refuses any request the cassette does not hold (`ErrUnexpectedRequest`), and
+  reports interactions nothing used.
+- `cloudkittest.ParseRecordings` and `LoadRecordings`: every recorded and synthetic response is
+  checked against the provider's OpenAPI document, and a recording carrying an `Authorization`
+  header, a cookie, an API-key header or a value `Redact` would change is refused
+  (`ErrCredentialInRecording`).
+- `cloudkittest.ParseSpec`, `LoadSpec`, `Spec.ValidateResponse` and `Spec.Synthesize`: an OpenAPI 3
+  validator over a stated JSON Schema subset (`type`, `nullable`, `required`, `properties`,
+  `additionalProperties`, `items`, `enum`, local `$ref`) that refuses any other keyword
+  (`ErrUnsupportedKeyword`), and synthetic responses generated from the document's examples, marked
+  `Synthetic`.
+- Policy tests read `cloudkittest` too: no default HTTP client or transport, context first on its
+  hook signatures, and its shipped names preserved.
 
 ### Changed
 

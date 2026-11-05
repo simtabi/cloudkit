@@ -66,6 +66,10 @@ Hosted at <https://opensource.simtabi.com/documentation/simtabi/cloudkit/>.
 - [Architecture](docs/architecture.md) — the rules every adapter follows, and why
 - [Release](docs/release.md) — how a version is tagged and released
 
+### Reference
+
+- [`cloudkittest`](docs/tools/cloudkittest.md) — the contract suite every adapter passes, the replaying recorder and the OpenAPI validator
+
 ## Contributing and security
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately, as

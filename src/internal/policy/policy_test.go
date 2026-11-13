@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -120,22 +121,92 @@ func readWorkflow(t *testing.T, name string) string {
 	return string(b)
 }
 
-// Go releases are git only until the owner says otherwise, so release.yml
-// must never start on its own: no automatic trigger of any kind, and a
-// dispatch that refuses to run without confirm=release-go on a v* tag.
-func TestReleaseRunsOnlyOnAConfirmedDispatch(t *testing.T) {
-	wf := readWorkflow(t, "release.yml")
-	if regexp.MustCompile(`(?m)^[ \t]*(push|schedule|pull_request|pull_request_target|release|workflow_run)\s*:`).MatchString(wf) {
-		t.Error("release.yml has an automatic trigger; it must run on workflow_dispatch only")
-	}
-	for _, want := range []string{"workflow_dispatch:", "confirm:", `"${CONFIRM}" != "release-go"`, "refs/tags/v[0-9]*"} {
-		if !strings.Contains(wf, want) {
-			t.Errorf("release.yml lacks %q: a release needs an explicit, confirmed dispatch on a tag", want)
+// onBlock returns the trigger names under release.yml's top-level `on:` and
+// the text of each, read by indentation: the file is plain block YAML and the
+// module has no YAML dependency to parse it with.
+func onBlock(t *testing.T, wf string) map[string]string {
+	t.Helper()
+	triggers := map[string]string{}
+	in, current := false, ""
+	top := regexp.MustCompile(`^[A-Za-z_]+:`)
+	key := regexp.MustCompile(`^  ([A-Za-z_]+):`)
+	for _, line := range strings.Split(wf, "\n") {
+		switch {
+		case line == "on:":
+			in = true
+		case in && top.MatchString(line):
+			in = false
+		case in:
+			if m := key.FindStringSubmatch(line); m != nil {
+				current = m[1]
+				triggers[current] = ""
+			} else if current != "" {
+				triggers[current] += line + "\n"
+			}
 		}
 	}
-	// A library has no binaries; nothing in the release may build or publish one.
-	for _, never := range []string{"goreleaser", "upload-artifact", "docker/", "homebrew", "scoop"} {
-		if strings.Contains(strings.ToLower(wf), never) {
+	if len(triggers) == 0 {
+		t.Fatal("release.yml has no block-style `on:` with triggers under it")
+	}
+	return triggers
+}
+
+// A release runs on a pushed version tag, or on request for a tag already
+// pushed (owner, 2026-11-13), and on nothing else: never a branch push, a
+// schedule, a pull request or a release event. cloudkit is the library
+// exception to the shared simtabi/.github go-release.yml, so its own job
+// resolves, checks and checks out the tag it releases.
+func TestReleaseRunsOnAVersionTagOrOnRequest(t *testing.T) {
+	wf := readWorkflow(t, "release.yml")
+	triggers := onBlock(t, wf)
+	names := make([]string, 0, len(triggers))
+	for name := range triggers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if got := strings.Join(names, ","); got != "push,workflow_dispatch" {
+		t.Fatalf("release.yml triggers on %s; want exactly push (version tags) and workflow_dispatch", got)
+	}
+
+	push := triggers["push"]
+	if regexp.MustCompile(`(?m)^\s*(branches|branches-ignore|tags-ignore|paths|paths-ignore)\s*:`).MatchString(push) {
+		t.Error("release.yml's push trigger filters branches or paths; it must fire on version tags only")
+	}
+	filters := regexp.MustCompile(`(?m)^\s*-\s*'([^']+)'`).FindAllStringSubmatch(push, -1)
+	if !strings.Contains(push, "tags:") || len(filters) == 0 {
+		t.Fatal("release.yml's push trigger has no tag filters")
+	}
+	for _, f := range filters {
+		if !strings.HasPrefix(f[1], "v[0-9]+.") {
+			t.Errorf("release.yml tag filter %q is not a version tag", f[1])
+		}
+	}
+
+	dispatch := triggers["workflow_dispatch"]
+	if !regexp.MustCompile(`(?m)^\s+tag:\s*$`).MatchString(dispatch) ||
+		!regexp.MustCompile(`(?m)^\s+required:\s*true\s*$`).MatchString(dispatch) {
+		t.Error("release.yml's workflow_dispatch lacks a required tag input")
+	}
+
+	for _, want := range []string{
+		"${{ inputs.tag || github.ref_name }}",           // the tag, from either trigger
+		"refs/tags/${{ inputs.tag || github.ref_name }}", // the release is built from the tag, not a branch
+		`^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`,    // a version, or a pre-release
+		"git/ref/tags/${TAG}",                            // that exists on GitHub
+		"cancel-in-progress: false",
+	} {
+		if !strings.Contains(wf, want) {
+			t.Errorf("release.yml lacks %q", want)
+		}
+	}
+	if strings.Contains(wf, "release-go") {
+		t.Error("release.yml still carries the retired confirm=release-go gate")
+	}
+	// A library has no binaries; nothing in the release may build or publish
+	// one. Comments are skipped: the header says why the shared one is not used.
+	code := regexp.MustCompile(`(?m)^\s*#.*$`).ReplaceAllString(wf, "")
+	for _, never := range []string{"goreleaser", "go-release.yml", "upload-artifact", "docker/", "homebrew", "scoop"} {
+		if strings.Contains(strings.ToLower(code), never) {
 			t.Errorf("release.yml mentions %q; cloudkit releases are git tags and a release body only", never)
 		}
 	}

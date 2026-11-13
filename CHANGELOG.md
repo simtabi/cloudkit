@@ -17,8 +17,9 @@ All notable changes to this project are documented here. The format follows
   `ErrUnsupported`, `ErrInvalidTransport`), `EgressError`, `Redact` and `RedactBody`.
 - Policy tests: forbidden network, TLS, SSH, global-state and logging symbols; CI and release
   workflow triggers; action pinning.
-- CI on pull requests, by dispatch and weekly; a release workflow that runs only on a confirmed
-  dispatch against a `v` tag.
+- CI on pull requests, by dispatch and weekly; a release workflow that runs on a pushed `vX.Y.Z`
+  tag, or on request for a tag already pushed (`gh workflow run release.yml --repo simtabi/cloudkit
+  -f tag=vX.Y.Z`). It replaced the dispatch gated on `confirm=release-go` before any release used it.
 - A weekly and on-demand CI leg on macOS and Windows; pull requests still test on Linux only.
 - `Options`, `CredentialSource` and `Registry` (`NewRegistry`, `Open`, `Descriptors`): the caller
   builds the registry from one `Factory` per provider; it refuses invalid options, incomplete

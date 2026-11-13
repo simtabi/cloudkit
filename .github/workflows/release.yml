@@ -1,32 +1,37 @@
 name: Release
 
 # cloudkit is a library: a release is a pair of git tags and a GitHub release
-# whose body is the tagged CHANGELOG section. There are no binaries to build.
+# whose body is the tagged CHANGELOG section. There are no binaries to build,
+# so this is the one Go repository that does not call simtabi/.github's shared
+# go-release.yml (that workflow runs GoReleaser, and there is nothing for it to
+# build here).
 #
-# Nothing here starts on a tag push. Pushing vX.Y.Z records a version and
-# publishes nothing; the release is dispatched by hand against that tag, with
-# an explicit confirmation, and refuses to run without both:
+# A release runs in two ways, and no other:
 #
-#   gh workflow run release.yml --repo simtabi/cloudkit --ref vX.Y.Z -f confirm=release-go
+#   git push origin vX.Y.Z                                              releases vX.Y.Z
+#   gh workflow run release.yml --repo simtabi/cloudkit -f tag=vX.Y.Z    the same, for a tag already pushed
 #
-# src/internal/policy's TestReleaseRunsOnlyOnAConfirmedDispatch fails if this
-# file gains an automatic trigger or loses the confirmation.
+# Push a version tag only for final code: tags are final, and a pushed tag
+# releases. src/internal/policy's TestReleaseRunsOnAVersionTagOrOnRequest fails
+# if this file gains any other trigger or stops checking out the tag it releases.
 #
-# GitHub registers a workflow that has no push or pull_request trigger only
-# when a push to the default branch changes the file; until then a dispatch
-# answers 404 "workflow not found on the default branch". The repository's
-# first push did not register it, so this comment's own merge is what did.
-# Check before tagging: gh workflow list --repo simtabi/cloudkit shows Release.
+# The src/vX.Y.Z alias this workflow pushes matches neither tag filter, and a
+# tag pushed with the workflow's own token starts no run anyway.
 on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
   workflow_dispatch:
     inputs:
-      confirm:
-        description: Type release-go to publish the GitHub release for the tag this run is dispatched on
+      tag:
+        description: An existing vX.Y.Z tag to release
         required: true
         type: string
 
+# One run per tag, never cancelled: two runs must not publish the same release.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -39,30 +44,32 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write # push the src/ alias tag and create the release
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - name: Refuse without confirmation or a release tag
+      - name: Check the tag
         env:
-          CONFIRM: ${{ inputs.confirm }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${CONFIRM}" != "release-go" ]; then
-            echo "::error::confirm must be release-go; nothing was published"
+          set -euo pipefail
+          if ! [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'${TAG}' is not a vX.Y.Z or vX.Y.Z-pre tag; nothing was published"
             exit 1
           fi
-          case "${GITHUB_REF}" in
-            refs/tags/v[0-9]*) ;;
-            *) echo "::error::dispatch this on a vX.Y.Z tag (--ref vX.Y.Z), not ${GITHUB_REF}"; exit 1 ;;
-          esac
+          if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --silent; then
+            echo "::error::${TAG} is not a tag on ${GITHUB_REPOSITORY}; push it first, a release is made from a tag only"
+            exit 1
+          fi
 
       - uses: actions/checkout@v7
         with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
           fetch-depth: 0
 
       # Go resolves a module in a subdirectory only through a tag carrying that
       # prefix, so src/vX.Y.Z must sit on the same commit. Create it if missing;
       # refuse if it exists elsewhere, since tags are final and never moved.
       - name: Module alias tag
-        env:
-          TAG: ${{ github.ref_name }}
         run: |
           alias="src/${TAG}"
           head="$(git rev-parse "${TAG}^{commit}")"
@@ -78,14 +85,11 @@ jobs:
           fi
 
       - name: Release notes from the CHANGELOG section
-        env:
-          TAG: ${{ github.ref_name }}
         run: src/scripts/extract-changelog.sh "${TAG}" > "${RUNNER_TEMP}/notes.md"
 
       - name: Create or update the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
           if gh release view "${TAG}" >/dev/null 2>&1; then
             gh release edit "${TAG}" --notes-file "${RUNNER_TEMP}/notes.md"

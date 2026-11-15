@@ -26,6 +26,30 @@ if err := transport.Validate(); err != nil {
 }
 ```
 
+### The hardened transport
+
+If you have no egress layer of your own, `transport.Hardened` (package
+`github.com/simtabi/cloudkit/src/transport`) builds one. It is the module's only ready-made transport
+and never returns the standard library's default one.
+
+| Setting | Value |
+|---|---|
+| Proxy | none, unless `Options.Proxy` names one; `HTTP_PROXY` and `HTTPS_PROXY` are never read |
+| TLS | verified against the system's roots plus `Options.ExtraRoots`; TLS 1.2 or newer; no option turns verification off |
+| Timeouts | dial 10 s, TLS handshake 10 s, response header 30 s, idle 90 s |
+| SSH dials | any host, or only the hosts in `Options.AllowHosts` (names or IP literals); any other is refused with an `EgressError` |
+
+```go
+hardened, err := transport.Hardened(transport.Options{
+	AllowHosts: []string{"db1.example.com", "203.0.113.10"},
+})
+if err != nil {
+	return err
+}
+```
+
+Provider API requests are limited separately, by each adapter's egress policy, below.
+
 ## The egress policy
 
 An adapter declares the hosts it talks to. `cloudkit.NewHTTPClient` wraps your round tripper so
@@ -228,8 +252,7 @@ URL with them before logging it.
 
 ## What comes next
 
-The contract test kit, the hardened transport, the SSH path, the cloud-init renderer, the first
-provider adapters (Hetzner, DigitalOcean, Linode, Vultr), managed database discovery and REST
+The SSH path, the cloud-init renderer, the first provider adapters (Hetzner, DigitalOcean, Linode, Vultr), managed database discovery and REST
 descriptors are planned; see [Architecture](architecture.md).
 
 ---

@@ -124,6 +124,12 @@ func TestRedact(t *testing.T) {
 		"GET https://api.example.test/v1/servers?page=2&token=" + v + "&per_page=50",
 		"https://api.example.test/upload?X-Amz-Signature=" + v,
 		"dial https://user:" + v + "@api.example.test/v1",
+		// A credential parameter outside a query string: an error message,
+		// a log line or the start of the text.
+		"vault said: token=" + v + " expired",
+		"token=" + v,
+		"login failed (password=" + v + ")",
+		"config: api_key=" + v + ", region=fra1",
 	}
 	for _, c := range cases {
 		got := Redact(c)
@@ -134,9 +140,14 @@ func TestRedact(t *testing.T) {
 			t.Errorf("Redact(%q) = %q does not mark the redaction", c, got)
 		}
 	}
-	plain := "GET https://api.example.test/v1/servers?page=2: 404 not found"
-	if got := Redact(plain); got != plain {
-		t.Errorf("Redact changed text with no credential: %q", got)
+	// A parameter name that only ends in a credential word is not one.
+	for _, plain := range []string{
+		"GET https://api.example.test/v1/servers?page=2: 404 not found",
+		"monkey=banana passkeys=3",
+	} {
+		if got := Redact(plain); got != plain {
+			t.Errorf("Redact changed text with no credential: %q", got)
+		}
 	}
 }
 

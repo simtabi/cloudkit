@@ -68,6 +68,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- `Redact` also removes a credential written as a bare `name=value` outside a query string, such
+  as `vault said: token=… expired` or `config: api_key=…`. It used to need a `?`, `&` or `;`
+  before the name. A name that only ends in a credential word (`monkey=`, `passkeys=`) is still
+  left alone.
 - The architecture guide states the scope split: cloudkit finds and connects to managed databases
   but never administers them, and REST descriptors (planned) support writes behind signing or
   explicit enablement, plans and the contract suite.

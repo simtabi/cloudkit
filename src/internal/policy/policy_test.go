@@ -19,7 +19,7 @@ import (
 // minGoFiles is a floor on how many Go files the scan reads. A walk that
 // stops matching would otherwise report a clean module. Raise it as the
 // module grows; never lower it to make a failure go away.
-const minGoFiles = 28
+const minGoFiles = 30
 
 // forbidden are the symbols that would let a request or a session bypass the
 // caller's transport, egress controls or host-key checks, or that would give

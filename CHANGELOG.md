@@ -60,6 +60,11 @@ All notable changes to this project are documented here. The format follows
   `Synthetic`.
 - Policy tests read `cloudkittest` too: no default HTTP client or transport, context first on its
   hook signatures, and its shipped names preserved.
+- `transport.Hardened`, the module's one ready-made `Transport`: no proxy unless `Options.Proxy`
+  names one (the environment's proxy settings are never read), TLS 1.2 or newer verified against the
+  system's roots plus `Options.ExtraRoots`, dial and TLS handshake timeouts of 10 s, a response
+  header timeout of 30 s and an idle timeout of 90 s, and SSH dials limited to `Options.AllowHosts`
+  when it is set.
 
 ### Changed
 

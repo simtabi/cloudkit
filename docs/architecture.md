@@ -126,11 +126,11 @@ before it loads.
 |---|---|
 | `src/` | package `cloudkit`: transport, egress policy, secrets, errors, redaction, the registry, capabilities, plans and `Apply`, retries |
 | `src/cloudkittest/` | the contract suite (`Run`, `Check`), the replaying `Recorder`, recordings and the OpenAPI validator |
+| `src/transport/` | `Hardened`, the ready-made transport: no environment proxy, TLS 1.2 floor, fixed timeouts, an optional SSH host allowlist |
 | `src/internal/policy/` | repository-wide tests: forbidden symbols, workflow guards |
 
 Planned packages are added when they have code: `providers/` (wave 1: Hetzner, DigitalOcean,
-Linode, Vultr; plus `generic` for any SSH host), `ssh/`, `cloudinit/`, `transport/` and
-`descriptor/`.
+Linode, Vultr; plus `generic` for any SSH host), `ssh/`, `cloudinit/` and `descriptor/`.
 
 ---
 

@@ -13,8 +13,11 @@ var (
 	reAuthHeader = regexp.MustCompile(`(?i)\b(authorization|proxy-authorization|x-auth-token|x-api-key|api-key)(\s*[:=]\s*)[^\r\n]*`)
 	// A bearer or basic scheme followed by a credential, wherever it appears.
 	reScheme = regexp.MustCompile(`(?i)\b(bearer|basic|token)(\s+)[A-Za-z0-9._~+/=-]{8,}`)
-	// Credentials in a query string or form body.
-	reQuery = regexp.MustCompile(`(?i)([?&;](?:access_token|token|api_key|apikey|key|secret|password|passwd|client_secret|signature|x-amz-signature|x-amz-credential|x-amz-security-token|sig)=)[^&\s"'#]*`)
+	// Credentials in a query string or form body, or a bare name=value in
+	// free text such as an error message. The name must start the text or
+	// follow a character that cannot be part of a name, so "monkey=" and
+	// "passkeys=" are left alone.
+	reQuery = regexp.MustCompile(`(?i)((?:^|[^A-Za-z0-9_-])(?:access_token|token|api_key|apikey|key|secret|password|passwd|client_secret|signature|x-amz-signature|x-amz-credential|x-amz-security-token|sig)=)[^&\s"'#]*`)
 	// Userinfo in a URL: scheme://user:password@host.
 	reUserinfo = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@`)
 )

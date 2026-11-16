@@ -246,7 +246,8 @@ req.Header.Set("Authorization", "Bearer "+string(token.Reveal()))
 | `ErrConfirmationRequired` | a destroy plan was applied without its names typed back |
 
 Match them with `errors.Is`. `cloudkit.Redact` strips Authorization-style headers, bearer
-credentials, credential query parameters and URL userinfo from a string, and `cloudkit.RedactBody`
+credentials, credential parameters (in a query string or written as `token=…` in free text) and
+URL userinfo from a string, and `cloudkit.RedactBody`
 also keeps at most 512 bytes of a provider's response body. Wrap any error that may carry a request
 URL with them before logging it.
 
